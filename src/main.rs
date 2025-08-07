@@ -1,5 +1,6 @@
 use threadpool::ThreadPool;
 use std::net::{TcpStream, SocketAddr};
+use std::io::Read;
 use std::sync::mpsc::channel;
 use std::time::Duration;
 use clap::Parser;
@@ -19,6 +20,22 @@ fn is_open(ip: &str, port: u16) -> bool {
     TcpStream::connect_timeout(&socket, timeout).is_ok()
 }
 
+fn grab_banner(ip: &str, port: u16) {
+    let addr = format!("{}:{}", ip, port);
+    match TcpStream::connect_timeout(&addr.parse().unwrap(), Duration::from_secs(2)) {
+        Ok(mut stream) => {
+            let mut buffer = [0; 1024];
+            if let Ok(bytes_read) = stream.read(&mut buffer) {
+                if bytes_read > 0 {
+                    let banner = String::from_utf8_lossy(&buffer[..bytes_read]);
+                    println!("{}:{} => {}", ip, port, banner.trim());
+                }
+            }
+        }
+        Err(_) => println!("{}:{} not responding", ip, port),
+    }
+}
+
 fn main() {
     let args = Args::parse();
     let ip = args.target;
@@ -36,6 +53,7 @@ fn main() {
     }
     drop(tx);
     for port in rx {
+        grab_banner(&ip, port);
         println!("Port {} is open", port);
     }
 }
